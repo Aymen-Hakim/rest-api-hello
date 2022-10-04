@@ -2,26 +2,65 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	"restapi.com/hello/queue"
+	"restapi.com/hello/db"
+	h "restapi.com/hello/helpers"
+	p "restapi.com/hello/person"
 )
 
 func main() {
-	q := queue.New()
+	db := db.New()
 	r := gin.Default()
-	r.PUT("/cmd/:cmd", func(c *gin.Context) {
-		q.Enqueue(c.Param("cmd"))
-		c.JSON(200, gin.H{
-			"done": "true",
-		})
-	})
-	r.GET("/cmd", func(c *gin.Context) {
-		cmd, err := q.Dequeue()
-		if err != nil {
-			cmd = "no command at the moment"
+	r.PUT("/api/create", func(c *gin.Context) {
+		var p p.Person
+		if c.BindJSON(&p) != nil {
+			return
 		}
-		c.JSON(200, gin.H{
-			"cmd": cmd,
-		})
+		id := db.Create(&p)
+		h.JOk(c, id)
+	})
+	r.GET("/api/read", func(c *gin.Context) {
+		var id int
+		if c.BindJSON(&id) != nil {
+			return
+		}
+		if p, err := db.Read(id); err != nil {
+			h.JErr(c, err.Error())
+		} else {
+			h.JOk(c, p)
+		}
+	})
+	r.PUT("/api/update", func(c *gin.Context) {
+		query := &struct {
+			ID     int
+			Person p.Person
+		}{}
+		if c.BindJSON(query) != nil {
+			return
+		}
+		if err := db.Update(query.ID, &query.Person); err != nil {
+			h.JErr(c, err.Error())
+		} else {
+			h.JDone(c)
+		}
+	})
+	r.DELETE("/api/delete", func(c *gin.Context) {
+		var id int
+		if c.BindJSON(&id) != nil {
+			return
+		}
+		if err := db.Delete(id); err != nil {
+			h.JErr(c, err.Error())
+		} else {
+			h.JDone(c)
+		}
+	})
+	r.GET("/api/search", func(c *gin.Context) {
+		var sub string
+		if c.BindJSON(&sub) != nil {
+			return
+		}
+		res := db.Search(sub)
+		h.JOk(c, res)
 	})
 	r.Run("127.0.0.1:8080")
 }
